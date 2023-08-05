@@ -7,12 +7,14 @@ using osu.Framework.Allocation;
 using osu.Framework.Configuration;
 using osu.Framework.Extensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Framework.Platform;
 using osu.Game.Configuration;
+using osu.Game.Graphics;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
-using osu.Game.Overlays.Dialog;
+using osu.Game.Overlays.Notifications;
 
 namespace osu.Game.Overlays.Settings.Sections.Graphics
 {
@@ -21,6 +23,35 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
         protected override LocalisableString Header => GraphicsSettingsStrings.RendererHeader;
 
         private bool automaticRendererInUse;
+
+        [Resolved]
+        private INotificationOverlay? notificationOverlay { get; set; }
+
+        private partial class RendererChangeNotification : SimpleNotification
+        {
+            public override bool IsImportant => true;
+            private OsuGame? game;
+
+            public RendererChangeNotification(OsuGame? game)
+            {
+                Text = GraphicsSettingsStrings.SettingRequiresRestart;
+                this.game = game;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load(OsuColour colours, INotificationOverlay notificationOverlay)
+            {
+                Icon = FontAwesome.Solid.InfoCircle;
+                IconContent.Colour = colours.Yellow;
+
+                Activated = delegate
+                {
+                    notificationOverlay.Hide();
+                    game?.AttemptExit();
+                    return true;
+                };
+            }
+        }
 
         [BackgroundDependencyLoader]
         private void load(FrameworkConfigManager config, OsuConfigManager osuConfig, IDialogOverlay? dialogOverlay, OsuGame? game, GameHost host)
@@ -67,17 +98,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 if (r.NewValue == RendererType.Automatic && automaticRendererInUse)
                     return;
 
-                if (game?.RestartAppWhenExited() == true)
-                {
-                    game.AttemptExit();
-                }
-                else
-                {
-                    dialogOverlay?.Push(new ConfirmDialog(GraphicsSettingsStrings.ChangeRendererConfirmation, () => game?.AttemptExit(), () =>
-                    {
-                        renderer.Value = automaticRendererInUse ? RendererType.Automatic : host.ResolvedRenderer;
-                    }));
-                }
+                notificationOverlay?.Post(new RendererChangeNotification(game));
             });
 
             // TODO: remove this once we support SDL+android.

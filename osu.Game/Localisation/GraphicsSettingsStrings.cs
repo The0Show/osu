@@ -150,10 +150,16 @@ namespace osu.Game.Localisation
         public static LocalisableString Png => new TranslatableString(getKey(@"png_lossless"), @"PNG (lossless)");
 
         /// <summary>
-        /// "In order to change the renderer, the game will close. Please open it again."
+        /// "This setting requires a restart to take effect. Click to restart."
         /// </summary>
-        public static LocalisableString ChangeRendererConfirmation =>
-            new TranslatableString(getKey(@"change_renderer_configuration"), @"In order to change the renderer, the game will close. Please open it again.");
+        public static LocalisableString SettingRequiresRestart =>
+            new TranslatableString(getKey(@"setting_requires_restart"), @"This setting requires a restart to take effect. Click to restart.");
+
+        /// <summary>
+        /// "This setting will take effect the next time the osu! is launched."
+        /// </summary>
+        public static LocalisableString SettingRequiresRestartAlt =>
+            new TranslatableString(getKey(@"setting_requires_restart_alt"), @"This setting will take effect the next time the osu! is launched.");
 
         private static string getKey(string key) => $"{prefix}:{key}";
     }
