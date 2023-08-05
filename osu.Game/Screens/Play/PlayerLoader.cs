@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using ManagedBass.Fx;
@@ -135,7 +136,7 @@ namespace osu.Game.Screens.Play
 
         private ScheduledDelegate? scheduledPushPlayer;
 
-        private EpilepsyWarning? epilepsyWarning;
+        private List<EpilepsyWarning> beatmapWarnings = new();
 
         private bool quickRestart;
 
@@ -154,6 +155,13 @@ namespace osu.Game.Screens.Play
         public PlayerLoader(Func<Player> createPlayer)
         {
             this.createPlayer = createPlayer;
+        }
+
+        private void registerBeatmapWarning(EpilepsyWarning warning)
+        {
+            beatmapWarnings.Add(warning);
+
+            AddInternal(warning);
         }
 
         [BackgroundDependencyLoader]
@@ -210,13 +218,23 @@ namespace osu.Game.Screens.Play
             };
 
             if (Beatmap.Value.BeatmapInfo.EpilepsyWarning)
-            {
-                AddInternal(epilepsyWarning = new EpilepsyWarning
+                registerBeatmapWarning(new EpilepsyWarning
                 {
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
                 });
-            }
+            if (Beatmap.Value.BeatmapInfo.Status == Beatmaps.BeatmapOnlineStatus.Loved)
+                registerBeatmapWarning(new LovedWarning
+                {
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                });
+            if (Beatmap.Value.BeatmapInfo.Status == Beatmaps.BeatmapOnlineStatus.Qualified)
+                registerBeatmapWarning(new QualifiedWarning
+                {
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                });
         }
 
         protected override void LoadComplete()
@@ -234,8 +252,10 @@ namespace osu.Game.Screens.Play
 
             ApplyToBackground(b =>
             {
-                if (epilepsyWarning != null)
-                    epilepsyWarning.DimmableBackground = b;
+                foreach (EpilepsyWarning warning in beatmapWarnings)
+                {
+                    warning.DimmableBackground = b;
+                };
             });
 
             Beatmap.Value.Track.AddAdjustment(AdjustableProperty.Volume, volumeAdjustment);
@@ -297,7 +317,10 @@ namespace osu.Game.Screens.Play
             ContentOut();
 
             // If the load sequence was interrupted, the epilepsy warning may already be displayed (or in the process of being displayed).
-            epilepsyWarning?.Hide();
+            foreach (EpilepsyWarning warning in beatmapWarnings)
+            {
+                warning.Hide();
+            }
 
             // Ensure the screen doesn't expire until all the outwards fade operations have completed.
             this.Delay(CONTENT_OUT_DURATION).FadeOut();
@@ -473,33 +496,29 @@ namespace osu.Game.Screens.Play
 
                 TransformSequence<PlayerLoader> pushSequence = this.Delay(0);
 
-                // only show if the warning was created (i.e. the beatmap needs it)
-                // and this is not a restart of the map (the warning expires after first load).
-                //
-                // note the late check of storyboard enable as the user may have just changed it
-                // from the settings on the loader screen.
-                if (epilepsyWarning?.IsAlive == true && showStoryboards.Value)
+                foreach (EpilepsyWarning warning in beatmapWarnings)
                 {
-                    const double epilepsy_display_length = 3000;
+                    if (warning.IsAlive)
+                    {
+                        pushSequence
+                            .Delay(CONTENT_OUT_DURATION)
+                            .Schedule(() => warning.State.Value = Visibility.Visible)
+                            .TransformBindableTo(volumeAdjustment, 0.25, warning.FADE_DURATION, Easing.OutQuint)
+                            .Delay(warning.DISPLAY_DURATION)
+                            .Schedule(() =>
+                            {
+                                warning.Hide();
+                                warning.Expire();
+                            })
+                            .Delay(warning.FADE_DURATION);
+                    }
+                    else
+                    {
+                        warning?.Expire();
+                    }
+                }
 
-                    pushSequence
-                        .Delay(CONTENT_OUT_DURATION)
-                        .Schedule(() => epilepsyWarning.State.Value = Visibility.Visible)
-                        .TransformBindableTo(volumeAdjustment, 0.25, EpilepsyWarning.FADE_DURATION, Easing.OutQuint)
-                        .Delay(epilepsy_display_length)
-                        .Schedule(() =>
-                        {
-                            epilepsyWarning.Hide();
-                            epilepsyWarning.Expire();
-                        })
-                        .Delay(EpilepsyWarning.FADE_DURATION);
-                }
-                else
-                {
-                    // This goes hand-in-hand with the restoration of low pass filter in contentOut().
-                    this.TransformBindableTo(volumeAdjustment, 0, CONTENT_OUT_DURATION, Easing.OutCubic);
-                    epilepsyWarning?.Expire();
-                }
+                //this.TransformBindableTo(volumeAdjustment, 0, CONTENT_OUT_DURATION, Easing.OutCubic);
 
                 pushSequence.Schedule(() =>
                 {
