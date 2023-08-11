@@ -997,6 +997,9 @@ namespace osu.Game.Screens.Edit
 
         private List<MenuItem> createFileMenuItems() => new List<MenuItem>
         {
+            new EditorMenuItem("New", MenuItemType.Standard, () => { }),  // prompt user to save changes if needed, reset editor to initial state
+            new EditorMenuItem("Open", MenuItemType.Standard, () => { }), // prompt user to save changes if needed, open map selection
+            new EditorMenuItemSpacer(),
             createDifficultyCreationMenu(),
             createDifficultySwitchMenu(),
             new EditorMenuItemSpacer(),
